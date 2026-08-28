@@ -1,12 +1,4 @@
 
-/*
- Main bootstrap:
- 1. Loads local game state.
- 2. Shows the 3D game immediately.
- 3. Connects Firebase in the background.
- 4. Never leaves the player stuck on "Game laden".
-*/
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.178.0/build/three.module.js";
 import {World} from "./world.js";
 import {GameState} from "./game.js";
 import {UI} from "./ui.js";
@@ -16,117 +8,119 @@ const game=new GameState();
 const ui=new UI(game);
 let world=null;
 const keys=new Set();
-let interaction=null;
 
-function progress(n,text){$("#loading-progress").style.width=n+"%";$("#loading-text").textContent=text;}
-function reveal(){progress(100,"Klaar!");setTimeout(()=>{const l=$("#loading");l.style.display="none";$("#game").hidden=false;},180);}
-function toast(text,type=""){ui.toast(text,type);}
+function setProgress(value,text){
+  const bar=$("#loading-progress");if(bar)bar.style.width=value+"%";
+  const label=$("#loading-text");if(label)label.textContent=text;
+}
+function showGame(){
+  $("#loading").style.display="none";
+  $("#game").hidden=false;
+}
+function notify(text,type=""){ui.toast(text,type);}
 
-async function boot(){
- progress(10,"Lokale save laden...");
- game.player.displayName=game.player.displayName||"Garden Player";
- progress(25,"3D engine starten...");
- try{
-  world=new World($("#game-canvas"));
-  world.setKeys(keys);
-  game.world=world;
- }catch(error){
-  console.error(error);
-  $("#loading-text").textContent="3D engine kon niet worden gestart.";
-  return;
- }
- progress(55,"Tuinwereld bouwen...");
- for(const [key,crop] of Object.entries(game.garden.crops)){
-  if(!crop)continue;
-  const [plot,cell]=key.split(":").map(Number);
-  world.updatePlotCrop(plot,cell,crop);
- }
- bindControls();
- ui.renderHud();
- progress(78,"Game starten...");
- reveal();
- world.animate();
-
- // Firebase is deliberately non-blocking: the game is already playable.
- setTimeout(async()=>{
+async function start(){
   try{
-   const online=await game.connect();
-   ui.renderHud();
-   toast(online?"☁ Firebase verbonden":"💾 Lokale opslag actief",online?"":"warn");
+    setProgress(10,"Profiel laden...");
+    game.saveLocal?.();
+    setProgress(30,"3D wereld starten...");
+    world=new World($("#game-canvas"),()=>{});
+    world.setKeys(keys);
+    game.world=world;
+    setProgress(60,"Tuin plaatsen...");
+    world.rebuildCrops(game.garden);
+    ui.renderHud();
+    bindControls();
+    setProgress(88,"Game klaarzetten...");
+    showGame();
+    world.start();
+    setProgress(100,"Klaar");
+
+    // Firebase is deliberately non-blocking and optional.
+    window.setTimeout(async()=>{
+      try{
+        const online=await game.connect();
+        ui.renderHud();
+        notify(online?"☁ Online save verbonden":"💾 Lokale save actief",online?"":"warn");
+      }catch(err){console.warn("Firebase background error",err);}
+    },100);
   }catch(error){
-   console.warn("Firebase background connection failed",error);
+    console.error("Start error:",error);
+    // Absolute fallback: reveal the game UI rather than remaining on the loader.
+    showGame();
+    if(!world){
+      try{world=new World($("#game-canvas"));world.setKeys(keys);world.start();}catch(e){console.error(e);}
+    }
+    notify("Game gestart in veilige lokale modus.","warn");
   }
- },50);
 }
 
 function bindControls(){
- document.addEventListener("keydown",e=>{
-  keys.add(e.code);
-  if(e.code==="Space"){e.preventDefault();world.jump();}
-  if(e.code==="KeyE")interact();
- });
- document.addEventListener("keyup",e=>keys.delete(e.code));
- $("#game-canvas").addEventListener("click",()=>{$("#game-canvas").requestPointerLock?.()});
- // Touch/mobile controls
- const mobile=$("#mobile-controls");
- if(matchMedia("(pointer:coarse)").matches){
-  mobile.hidden=false;
-  const joy=$("#joystick"),stick=$("#joystick-stick");
-  let active=false;
-  joy.addEventListener("pointerdown",e=>{active=true;joy.setPointerCapture(e.pointerId);joyMove(e)});
-  joy.addEventListener("pointermove",e=>{if(active)joyMove(e)});
-  joy.addEventListener("pointerup",()=>{active=false;world.moveTarget.set(0,0);stick.style.transform="translate(0,0)"});
-  function joyMove(e){
-   const r=joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
-   const dx=e.clientX-cx,dy=e.clientY-cy;const max=42;const len=Math.hypot(dx,dy);const scale=Math.min(1,max/Math.max(1,len));
-   const x=dx*scale/max,y=dy*scale/max;
-   world.moveTarget.set(x,-y);stick.style.transform=`translate(${dx*scale}px,${dy*scale}px)`;
+  document.addEventListener("keydown",e=>{
+    if(e.code==="Space"){e.preventDefault();world.jump();}
+    if(e.code==="KeyE"){interact();}
+    keys.add(e.code);
+  });
+  document.addEventListener("keyup",e=>keys.delete(e.code));
+
+  $("#shop-btn").onclick=()=>ui.shop();
+  $("#pets-btn").onclick=()=>ui.pets();
+  $("#settings").onclick=()=>ui.settings();
+
+  const canvas=$("#game-canvas");
+  canvas.addEventListener("click",()=>canvas.requestPointerLock?.());
+  canvas.addEventListener("dblclick",e=>{e.preventDefault();interact();});
+
+  if(matchMedia("(pointer:coarse)").matches){
+    $("#mobile-controls").hidden=false;
+    setupMobile();
   }
-  $("#mobile-jump").onclick=()=>world.jump();$("#mobile-interact").onclick=()=>interact();
- }
 }
 
 function interact(){
- const target=world.findLookTarget();
- if(!target){toast("Kijk naar een crop of veld.","warn");return;}
- if(target.userData.crop){
-  harvestTarget(target);
- }else if(target.userData.plot!==undefined && target.userData.cell!==undefined){
-  plantTarget(target);
- }
+  if(!world)return;
+  const target=world.findCenterObject();
+  if(!target){notify("Kijk dichter naar een plant of leeg veld.","warn");return;}
+  if(target.type==="crop"){
+    const result=game.harvest(target.plot,target.cell);
+    if(!result.ok){notify(result.msg,"warn");return;}
+    world.rebuildCrops(game.garden);
+    ui.renderHud();game.save();
+    notify(`🌟 ${result.mutation} harvest · +🪙 ${ui.money(result.value)}`);
+  }else if(target.type==="cell"){
+    const result=game.plant(target.plot,target.cell,game.selectedSeed);
+    if(!result.ok){notify(result.msg,"warn");return;}
+    world.rebuildCrops(game.garden);
+    ui.renderHud();game.save();
+    notify(`${game.selectedSeed} geplant!`);
+  }
 }
-function plantTarget(tile){
- const {plot,cell}=tile.userData;
- const r=game.plant(plot,cell,game.selectedSeed);
- if(!r.ok){toast(r.msg,"warn");return}
- world.updatePlotCrop(plot,cell,r.crop);ui.renderHud();game.save();
- toast(`${game.selectedSeed} geplant!`);
-}
-function harvestTarget(mesh){
- const r=game.harvest(mesh.userData.plot,mesh.userData.cell);
- if(!r.ok){toast(r.msg,"warn");return}
- const key=`${mesh.userData.plot}:${mesh.userData.cell}`;
- const crop=game.garden.crops[key];
- world.updatePlotCrop(mesh.userData.plot,mesh.userData.cell,crop);
- ui.renderHud();game.save();
- toast(`🌟 ${r.mutation} harvest: +🪙 ${ui.money(r.value)}`);
+
+function setupMobile(){
+  const joy=$("#joystick"),stick=$("#joystick-stick");
+  let active=false;
+  joy.addEventListener("pointerdown",e=>{active=true;joy.setPointerCapture(e.pointerId);moveJoy(e);});
+  joy.addEventListener("pointermove",e=>{if(active)moveJoy(e);});
+  joy.addEventListener("pointerup",()=>{active=false;world.moveStick.x=world.moveStick.y=0;stick.style.transform="translate(0,0)"});
+  function moveJoy(e){
+    const r=joy.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+    let dx=e.clientX-cx,dy=e.clientY-cy;const max=40,len=Math.hypot(dx,dy),scale=Math.min(1,max/Math.max(1,len));
+    dx*=scale;dy*=scale;world.moveStick.x=dx/max;world.moveStick.y=dy/max;stick.style.transform=`translate(${dx}px,${dy}px)`;
+  }
+  $("#mobile-jump").onclick=()=>world.jump();
+  $("#mobile-interact").onclick=()=>interact();
 }
 
 setInterval(()=>{
- if(!world)return;
- for(const [key,crop] of Object.entries(game.garden.crops)){
-  if(!crop)continue;
-  if(game.isReady(crop)&&!crop.ready){
-   crop.ready=true;const [plot,cell]=key.split(":").map(Number);world.updatePlotCrop(plot,cell,crop);
+  if(!world)return;
+  for(const crop of Object.values(game.garden.cells||{})){
+    if(!crop)continue;
+    if(!crop.ready&&Date.now()>=crop.readyAt){
+      crop.ready=true;world.rebuildCrops(game.garden);
+    }
   }
- }
-},500);
+},400);
 
+setInterval(()=>game.save(),30000);
 window.addEventListener("beforeunload",()=>game.save());
-window.addEventListener("error",e=>console.error("Game error",e.error||e.message));
-
-boot().catch(error=>{
- console.error(error);
- $("#loading-text").textContent="Er ging iets mis. Lokale game-modus wordt geladen...";
- setTimeout(reveal,100);
-});
+start();
