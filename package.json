@@ -1,0 +1,16 @@
+{
+  "name": "grow-garden-2-online",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^12.0.0",
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {}
+}
