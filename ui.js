@@ -1,162 +1,45 @@
 
-/*
- Grow Garden 2 - UI renderer and interaction layer.
- Large, reusable view components. All DOM creation is centralized here.
-*/
-import {GAME,currentWeather,cropProgress,isReady,selectedPetMultiplier,quests,levelNeeded} from "./game.js";
-
+import {CROPS,PETS} from "./data.js";
 export class UI{
- constructor(app){
-  this.app=app;
-  this.currentView="garden";
-  this.selectedSeed="Carrot";
-  this.lastRender="";
+ constructor(game){
+  this.game=game;this.seedBar=document.querySelector("#seed-bar");this.bind();
  }
- money(n){return new Intl.NumberFormat("nl-NL").format(Math.floor(n||0));}
- escape(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
- toast(msg,type="good"){
-  const root=document.querySelector("#toast-root");if(!root)return;
-  const el=document.createElement("div");el.className=`toast ${type}`;el.textContent=msg;root.appendChild(el);
-  setTimeout(()=>el.remove(),3200);
+ bind(){
+  document.querySelectorAll(".nav").forEach(()=>{});
+  document.querySelector("#shop-btn").onclick=()=>this.shop();
+  document.querySelector("#pets-btn").onclick=()=>this.pets();
+  document.querySelector("#settings").onclick=()=>this.settings();
  }
- setView(view){
-  this.currentView=view;
-  document.querySelectorAll(".nav").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
-  ["garden","shop","pets","quests","inventory"].forEach(v=>{
-   const el=document.querySelector("#view-"+v);if(el)el.hidden=v!==view;
-  });
-  this.renderCurrent();
+ money(n){return new Intl.NumberFormat("nl-NL").format(Math.floor(n||0))}
+ renderHud(){
+  const p=this.game.player;
+  document.querySelector("#hud-coins").textContent=this.money(p.coins);
+  document.querySelector("#hud-gems").textContent=this.money(p.gems);
+  document.querySelector("#hud-level").textContent=p.level;
+  document.querySelector("#online-status").textContent=this.game.backendOnline?"FIREBASE ONLINE":"LOCAL SAVE";
+  const q=this.game.quest();document.querySelector("#quest-name").textContent=q.title;document.querySelector("#quest-progress").textContent=`${q.progress} / ${q.target}`;document.querySelector("#quest-bar").style.width=`${q.progress/q.target*100}%`;
+  this.seedBar.innerHTML=Object.entries(CROPS).map(([name,c])=>`<button class="seed ${this.game.selectedSeed===name?"selected":""}" data-seed="${name}"><span class="emoji">${c.emoji}</span><small>${name}</small><b>${p.seeds[name]||0}</b></button>`).join("");
+  this.seedBar.querySelectorAll("[data-seed]").forEach(b=>b.onclick=()=>{this.game.selectedSeed=b.dataset.seed;this.renderHud()});
  }
- renderCurrent(){
-  if(this.currentView==="garden")this.renderGarden();
-  if(this.currentView==="shop")this.renderShop();
-  if(this.currentView==="pets")this.renderPets();
-  if(this.currentView==="quests")this.renderQuests();
-  if(this.currentView==="inventory")this.renderInventory();
-  this.updateHeader();
+ toast(text,type=""){const e=document.createElement("div");e.className="toast "+type;e.textContent=text;document.querySelector("#toast-root").append(e);setTimeout(()=>e.remove(),2800)}
+ modal(title,body){
+  const root=document.querySelector("#panel-root");root.innerHTML=`<div class="modal-back"><div class="modal"><button class="modal-close">×</button><h2>${title}</h2>${body}</div></div>`;
+  root.querySelector(".modal-close").onclick=()=>root.innerHTML="";
+  root.querySelector(".modal-back").onclick=e=>{if(e.target.classList.contains("modal-back"))root.innerHTML=""};
+  return root.querySelector(".modal");
  }
- updateHeader(){
-  const p=this.app.player;if(!p)return;
-  document.querySelector("#coins").textContent=this.money(p.coins);
-  document.querySelector("#gems").textContent=this.money(p.gems);
-  document.querySelector("#level").textContent=p.level;
-  document.querySelector("#player-name").textContent=p.displayName||"Garden Player";
-  document.querySelector("#avatar").textContent=(p.displayName||"G").slice(0,1).toUpperCase();
+ shop(){
+  const el=this.modal("Seed Shop",`<p>Koop zaden met je coins.</p><div class="shop-grid">${Object.entries(CROPS).map(([n,c])=>`<button class="shop-item" data-buy="${n}"><strong>${c.emoji} ${n}</strong><small>${c.rarity} · 🪙 ${this.money(c.price)}</small></button>`).join("")}</div>`);
+  el.querySelectorAll("[data-buy]").forEach(b=>b.onclick=()=>{const r=this.game.buySeed(b.dataset.buy);this.toast(r.ok?`${b.dataset.buy} gekocht.`:r.msg,r.ok?"":"warn");this.renderHud();this.game.save()});
  }
-
- renderGarden(){
-  const root=document.querySelector("#view-garden"),p=this.app.player,g=this.app.garden;
-  const weather=currentWeather();
-  const xpPct=Math.min(100,p.xp/levelNeeded(p.level)*100);
-  root.innerHTML=`
-   <div class="hero">
-    <div class="eyebrow">${weather.icon} ${weather.name.toUpperCase()}</div>
-    <h2>Je tuin groeit.</h2>
-    <p>Plant zaden, wacht op groeistages en oogst crops met mutations. Pets verhogen je opbrengsten.</p>
-   </div>
-   <div class="stats-grid">
-    <div class="stat"><div class="label">Level</div><div class="value">${p.level}</div><div class="progress"><span style="width:${xpPct}%"></span></div></div>
-    <div class="stat"><div class="label">Harvested</div><div class="value">${this.money(p.stats.harvested)}</div></div>
-    <div class="stat"><div class="label">Pet bonus</div><div class="value">×${selectedPetMultiplier(p).toFixed(2)}</div></div>
-    <div class="stat"><div class="label">Rebirths</div><div class="value">${p.rebirths||0}</div></div>
-   </div>
-   <div class="section-head"><h3>Garden Plot</h3><span class="muted">Klik een leeg veld om te planten · klik een rijpe crop om te oogsten</span></div>
-   <div class="garden-panel">
-    <div class="garden-tools">
-      <div class="seed-selector">${this.seedButtons(p)}</div>
-      <div><button class="action-btn alt" id="daily-btn">🎁 Daily Reward</button></div>
-    </div>
-    <div class="garden-grid">${this.gridCells(g)}</div>
-   </div>`;
-  root.querySelector("#daily-btn").onclick=()=>this.app.claimDaily();
-  root.querySelectorAll("[data-seed]").forEach(b=>b.onclick=()=>{this.selectedSeed=b.dataset.seed;this.renderGarden();});
-  root.querySelectorAll("[data-cell]").forEach(cell=>cell.onclick=()=>this.app.cellClick(Number(cell.dataset.cell)));
+ pets(){
+  const owned=this.game.player.pets||[];
+  const el=this.modal("Pet House",`<p>Pets geven een multiplier op harvest.</p><div class="shop-grid">${Object.entries(PETS).map(([n,c])=>`<button class="shop-item" data-pet="${n}"><strong>${c.emoji} ${n}</strong><small>${c.rarity} · ×${c.multiplier} · 🪙 ${this.money(c.price)}</small></button>`).join("")}</div><h3>Mijn pets</h3>${owned.map(p=>`<button class="shop-item" data-equip="${p.id}" style="width:100%;margin-top:7px"><strong>${PETS[p.name]?.emoji||"🐾"} ${p.name}</strong><small>${this.game.player.equipped.includes(p.id)?"Equipped":"Klik om te equippen"}</small></button>`).join("")||"<p>Nog geen pets.</p>"}`);
+  el.querySelectorAll("[data-pet]").forEach(b=>b.onclick=()=>{const r=this.game.buyPet(b.dataset.pet);this.toast(r.ok?"Pet gekocht.":r.msg,r.ok?"":"warn");this.renderHud();this.game.save()});
+  el.querySelectorAll("[data-equip]").forEach(b=>b.onclick=()=>{const r=this.game.equipPet(b.dataset.equip);this.toast(r.ok?"Pet aangepast.":r.msg,r.ok?"":"warn");this.pets();this.game.save();});
  }
-
- seedButtons(p){
-  return Object.keys(GAME.crops).map(name=>{
-   const count=p.seeds[name]||0;
-   return `<button class="seed-select ${this.selectedSeed===name?"selected":""}" data-seed="${name}">
-     ${GAME.crops[name].emoji} ${name} <b>${count}</b>
-   </button>`;
-  }).join("");
- }
-
- gridCells(g){
-  const now=Date.now();
-  return Object.keys(g.crops).map(k=>{
-   const cell=Number(k),crop=g.crops[cell];
-   if(!crop)return `<button class="plot-cell" data-cell="${cell}" title="Plant ${this.selectedSeed}"><span style="opacity:.4">+</span></button>`;
-   const cfg=GAME.crops[crop.name];const ready=isReady(crop,now);const prog=cropProgress(crop,now);
-   const mutation=GAME.mutations[crop.mutation]||GAME.mutations.normal;
-   const remaining=Math.max(0,Math.ceil((crop.readyAt-now)/1000));
-   const timer=ready?"READY":remaining+"s";
-   return `<button class="plot-cell ${ready?"ready-glow":"growing"}" data-cell="${cell}" title="${ready?"Harvest":"Growing"}">
-      <span class="crop-icon">${cfg.emoji}</span><span class="crop-name">${mutation.name} ${crop.name}</span>
-      <span class="crop-timer">${timer}</span>
-    </button>`;
-  }).join("");
- }
-
- renderShop(){
-  const root=document.querySelector("#view-shop");
-  root.innerHTML=`<div class="section-head"><div><h3>Seed Shop</h3><span class="muted">Koop seeds en vul je voorraad.</span></div></div>
-  <div class="card-grid">${Object.entries(GAME.crops).map(([name,c])=>`
-   <article class="item-card">
-    <div class="item-icon">${c.emoji}</div><h4>${name}</h4><p>${c.rarity} · groeit in ${c.grow}s · verkoopt voor ${c.sell} coins.</p>
-    <div class="item-row"><span class="price">🪙 ${this.money(c.price)}</span><span class="rarity">${c.rarity}</span></div>
-    <button class="action-btn" style="width:100%;margin-top:12px" data-buy-seed="${name}">Koop seed</button>
-   </article>`).join("")}</div>`;
-  root.querySelectorAll("[data-buy-seed]").forEach(b=>b.onclick=()=>this.app.buySeed(b.dataset.buySeed));
- }
-
- renderPets(){
-  const root=document.querySelector("#view-pets"),p=this.app.player;
-  root.innerHTML=`<div class="section-head"><div><h3>Pet House</h3><span class="muted">Equip tot ${GAME.maxEquippedPets} pets. Bonus: ×${selectedPetMultiplier(p).toFixed(2)}</span></div></div>
-  <div class="card-grid">${Object.entries(GAME.pets).map(([name,c])=>`
-   <article class="item-card">
-    <div class="item-icon">${c.emoji}</div><h4>${name}</h4><p>${c.rarity} · je harvest wordt ×${c.multiplier.toFixed(2)}.</p>
-    <div class="item-row"><span class="price">🪙 ${this.money(c.price)}</span><span class="rarity">${c.rarity}</span></div>
-    <button class="action-btn" style="width:100%;margin-top:12px" data-buy-pet="${name}">Koop pet</button>
-   </article>`).join("")}</div>
-  <div class="section-head"><h3>Mijn pets</h3></div>
-  <div class="card-grid">${(p.pets||[]).map(pet=>{
-   const cfg=GAME.pets[pet.name],equipped=p.equippedPets.includes(pet.id);
-   return `<article class="item-card"><div class="item-icon">${cfg?.emoji||"🐾"}</div><h4>${this.escape(pet.name)}</h4><p>Multiplier ×${cfg?.multiplier||1}</p><button class="action-btn ${equipped?"gold":"alt"}" data-equip="${pet.id}">${equipped?"Unequip":"Equip"}</button></article>`;
-  }).join("")||`<div class="empty">Je hebt nog geen pets.</div>`}</div>`;
-  root.querySelectorAll("[data-buy-pet]").forEach(b=>b.onclick=()=>this.app.buyPet(b.dataset.buyPet));
-  root.querySelectorAll("[data-equip]").forEach(b=>b.onclick=()=>this.app.equipPet(b.dataset.equip));
- }
-
- renderQuests(){
-  const root=document.querySelector("#view-quests"),p=this.app.player;
-  root.innerHTML=`<div class="section-head"><div><h3>Quests</h3><span class="muted">Voltooi doelen voor extra coins en XP.</span></div></div>
-  ${quests(p).map(q=>`<article class="quest"><div class="quest-top"><div><h4>${q.title}</h4><p>${q.description}</p></div><button class="action-btn ${q.claimed?"alt":q.done?"gold":""}" ${(!q.done||q.claimed)?"disabled":""} data-claim="${q.id}">${q.claimed?"Claimed":q.done?"Claim":"In progress"}</button></div><div class="progress"><span style="width:${Math.min(100,q.progress/q.target*100)}%"></span></div><div class="item-row"><span class="muted">${this.money(q.progress)} / ${this.money(q.target)}</span><span class="price">🪙 ${this.money(q.reward)}</span></div></article>`).join("")}`;
-  root.querySelectorAll("[data-claim]").forEach(b=>b.onclick=()=>this.app.claimQuest(b.dataset.claim));
- }
-
- renderInventory(){
-  const p=this.app.player;
-  const root=document.querySelector("#view-inventory");
-  root.innerHTML=`<div class="section-head"><div><h3>Inventory</h3><span class="muted">Seeds, pets en progression.</span></div></div>
-  <div class="card-grid">${Object.entries(GAME.crops).map(([n,c])=>`<article class="item-card"><div class="item-icon">${c.emoji}</div><h4>${n}</h4><p>Seeds in voorraad</p><div class="item-row"><b>${this.money(p.seeds[n]||0)}</b><span class="rarity">${c.rarity}</span></div></article>`).join("")}</div>
-  <div class="section-head"><h3>Account</h3></div>
-  <div class="item-card"><p>Player ID</p><h4>${this.escape(p.id||"local-demo")}</h4><p>Profile save status: ${this.app.backendOnline?"Firebase online":"Local fallback"}</p></div>`;
- }
-
- openSettings(){
-  const modal=document.createElement("div");modal.className="modal-backdrop";
-  modal.innerHTML=`<div class="modal"><div class="modal-head"><h3>Settings</h3><button class="close">×</button></div>
-  <div class="modal-body"><p class="muted">Gameplay en account opties.</p>
-   <div class="item-row"><span>Sound effects</span><button class="action-btn alt" id="sound-toggle">${this.app.player.settings.sound?"Aan":"Uit"}</button></div>
-   <div class="item-row"><span>Music</span><button class="action-btn alt" id="music-toggle">${this.app.player.settings.music?"Aan":"Uit"}</button></div>
-   <div class="item-row"><span>Save</span><button class="action-btn" id="save-now">Save now</button></div>
-  </div></div>`;
-  document.querySelector("#modal-root").appendChild(modal);
-  modal.querySelector(".close").onclick=()=>modal.remove();
-  modal.addEventListener("click",e=>{if(e.target===modal)modal.remove();});
-  modal.querySelector("#sound-toggle").onclick=()=>{this.app.player.settings.sound=!this.app.player.settings.sound;modal.querySelector("#sound-toggle").textContent=this.app.player.settings.sound?"Aan":"Uit";this.app.save();};
-  modal.querySelector("#music-toggle").onclick=()=>{this.app.player.settings.music=!this.app.player.settings.music;modal.querySelector("#music-toggle").textContent=this.app.player.settings.music?"Aan":"Uit";this.app.save();};
-  modal.querySelector("#save-now").onclick=()=>{this.app.save();this.toast("Game opgeslagen");};
+ settings(){
+  const el=this.modal("Settings",`<p>Grow Garden 2 gebruikt lokaal opslaan wanneer Firebase niet bereikbaar is.</p><button class="shop-item" id="reset">Reset lokale save</button>`);
+  el.querySelector("#reset").onclick=()=>{localStorage.removeItem("gg2_3d_save_v4");location.reload()};
  }
 }
