@@ -1,28 +1,13 @@
-import { ref, get, set, update } from "firebase/database";
-import { db } from "../firebase/firebase.js";
+import { GAME } from "../config/game.js";
+import { readPlayer,writePlayer,patchPlayer } from "./database.js";
 
-export async function getPlayer(playerId) {
-  const snapshot = await get(ref(db, `players/${playerId}`));
-  return snapshot.exists() ? snapshot.val() : null;
+export function defaultPlayer(displayName="Player"){
+ return {displayName,coins:GAME.startingCoins,gems:GAME.startingGems,level:1,xp:0,rebirths:0,
+ seeds:{Carrot:5,Tomato:0,Blueberry:0,Starfruit:0,Moonmelon:0},
+ pets:[],equippedPets:[],quests:{},settings:{music:true,sfx:true},createdAt:Date.now(),updatedAt:Date.now()};
 }
-
-export async function createPlayer(playerId, displayName) {
-  const data = {
-    displayName,
-    coins: 250,
-    gems: 10,
-    level: 1,
-    xp: 0,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
-  };
-  await set(ref(db, `players/${playerId}`), data);
-  return data;
+export async function ensurePlayer(id,name="Player"){
+ let p=await readPlayer(id);if(!p){p=defaultPlayer(name);await writePlayer(id,p);}return p;
 }
-
-export async function updatePlayer(playerId, patch) {
-  await update(ref(db, `players/${playerId}`), {
-    ...patch,
-    updatedAt: Date.now()
-  });
-}
+export async function updatePlayer(id,patch){patch.updatedAt=Date.now();return patchPlayer(id,patch);}
+export async function addCoins(id,amount,p){return updatePlayer(id,{coins:Math.max(0,(p.coins||0)+amount)});}

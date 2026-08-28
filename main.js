@@ -1,21 +1,23 @@
-import "./style.css";
-import { renderDashboard } from "./components/dashboard.js";
-import { getPlayer, createPlayer } from "./services/playerService.js";
+import "./ui/style.css";
+import { anonymousLogin,watchAuth } from "./auth/auth.js";
+import { ensurePlayer } from "./services/playerService.js";
+import { mountApp,updateStats } from "./ui/app.js";
+import { renderSeedShop,renderPetShop } from "./ui/shop.js";
 
-const root = document.querySelector("#app");
+const root=document.querySelector("#app");
+root.innerHTML="<div class='panel'><h2>Grow Garden 2</h2><p>Verbinden met Firebase...</p></div>";
 
-async function start() {
-  const demoPlayerId = "demo-player";
-  let player = await getPlayer(demoPlayerId);
+watchAuth(async user=>{
+ if(!user)return;
+ const player=await ensurePlayer(user.uid,user.displayName||"Garden Player");
+ mountApp(root,player);
+ const content=document.querySelector("#content");
+ document.querySelectorAll("[data-action]").forEach(b=>b.onclick=()=>{
+   if(b.dataset.action==="seeds")renderSeedShop(content,()=>{});
+   if(b.dataset.action==="pets")renderPetShop(content,()=>{});
+   if(b.dataset.action==="inventory")content.innerHTML="<h2>Inventory</h2><pre>"+JSON.stringify(player.seeds,null,2)+"</pre>";
+ });
+ updateStats(player);
+}).catch(e=>root.innerHTML=`<div class="panel"><h2>Firebase fout</h2><p>${e.message}</p></div>`);
 
-  if (!player) {
-    player = await createPlayer(demoPlayerId, "Garden Player");
-  }
-
-  renderDashboard(root, player);
-}
-
-start().catch((error) => {
-  console.error(error);
-  root.innerHTML = `<div class="error">Firebase kon niet worden geladen. Controleer je Firebase-configuratie en database rules.</div>`;
-});
+anonymousLogin().catch(e=>console.error(e));
