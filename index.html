@@ -1,61 +1,78 @@
 <!doctype html>
 <html lang="nl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0b1d12">
-<title>Grow Garden 2 Online</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#09140d">
+  <title>Grow Garden 2 — Online</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="boot">
-  <div class="boot-card">
-    <div class="boot-logo">🌱</div>
+<div id="loading">
+  <div class="loader-card">
+    <div class="loader-logo">🌱</div>
     <h1>Grow Garden 2</h1>
-    <p id="boot-status">Game laden...</p>
-    <div class="boot-bar"><span></span></div>
+    <p id="loading-text">Wereld bouwen...</p>
+    <div class="loader-track"><div id="loading-progress"></div></div>
   </div>
 </div>
 
-<div id="app" hidden>
-  <header class="topbar">
-    <div class="brand"><div class="brand-icon">🌱</div><div><strong>Grow Garden 2</strong><small>Online Garden</small></div></div>
-    <div class="wallet">
-      <div class="wallet-chip"><span>🪙</span><b id="coins">0</b></div>
-      <div class="wallet-chip"><span>💎</span><b id="gems">0</b></div>
-      <div class="wallet-chip"><span>⭐</span><b id="level">1</b></div>
-    </div>
-    <button class="icon-btn" id="open-settings">⚙</button>
-  </header>
+<div id="game" hidden>
+  <canvas id="game-canvas"></canvas>
 
-  <main class="layout">
-    <aside class="sidebar">
-      <button class="nav active" data-view="garden">🌿 <span>Garden</span></button>
-      <button class="nav" data-view="shop">🛒 <span>Seed Shop</span></button>
-      <button class="nav" data-view="pets">🐾 <span>Pets</span></button>
-      <button class="nav" data-view="quests">📜 <span>Quests</span></button>
-      <button class="nav" data-view="inventory">🎒 <span>Inventory</span></button>
-      <div class="sidebar-spacer"></div>
-      <div class="player-card">
-        <div class="avatar" id="avatar">G</div>
-        <div><strong id="player-name">Garden Player</strong><small>Online</small></div>
+  <div id="hud">
+    <div class="hud-top">
+      <div class="brand">
+        <span class="brand-mark">🌱</span>
+        <div><strong>Grow Garden 2</strong><small id="online-status">LOCAL MODE</small></div>
       </div>
-    </aside>
+      <div class="wallet">
+        <span>🪙 <b id="hud-coins">0</b></span>
+        <span>💎 <b id="hud-gems">0</b></span>
+        <span>⭐ <b id="hud-level">1</b></span>
+      </div>
+      <button id="settings" class="hud-btn">⚙</button>
+    </div>
 
-    <section class="content">
-      <div id="view-garden" class="view"></div>
-      <div id="view-shop" class="view" hidden></div>
-      <div id="view-pets" class="view" hidden></div>
-      <div id="view-quests" class="view" hidden></div>
-      <div id="view-inventory" class="view" hidden></div>
-    </section>
-  </main>
+    <div class="crosshair">+</div>
 
-  <div id="modal-root"></div>
-  <div id="toast-root" class="toast-root"></div>
+    <div class="left-hud">
+      <div class="quest-card">
+        <small>ACTIVE QUEST</small>
+        <strong id="quest-name">First Harvest</strong>
+        <span id="quest-progress">0 / 10</span>
+        <div class="bar"><i id="quest-bar"></i></div>
+      </div>
+      <div class="control-card">
+        <div><kbd>W A S D</kbd> Move</div>
+        <div><kbd>SHIFT</kbd> Sprint</div>
+        <div><kbd>SPACE</kbd> Jump</div>
+        <div><kbd>E</kbd> Interact</div>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <div class="seed-bar" id="seed-bar"></div>
+      <button id="shop-btn" class="round-action">SHOP</button>
+      <button id="pets-btn" class="round-action">PETS</button>
+    </div>
+
+    <div id="interaction" class="interaction" hidden>
+      <div id="interaction-title">Plant</div>
+      <span>Druk op E</span>
+    </div>
+  </div>
+
+  <div id="mobile-controls" hidden>
+    <div id="joystick"><div id="joystick-stick"></div></div>
+    <button id="mobile-jump">↑</button>
+    <button id="mobile-interact">E</button>
+  </div>
+
+  <div id="panel-root"></div>
+  <div id="toast-root"></div>
 </div>
 
-<script type="module" src="./scripts/app.js"></script>
-<noscript><div class="panel" style="margin:20px">JavaScript moet aan staan om Grow Garden 2 te spelen.</div></noscript>
+<script type="module" src="./scripts/main.js"></script>
 </body>
 </html>
