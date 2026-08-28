@@ -1,12 +1,61 @@
 <!doctype html>
 <html lang="nl">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Grow Garden 2</title>
+<meta name="theme-color" content="#0b1d12">
+<title>Grow Garden 2 Online</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app"></div>
-<script type="module" src="/src/main.js"></script>
+<div id="boot">
+  <div class="boot-card">
+    <div class="boot-logo">🌱</div>
+    <h1>Grow Garden 2</h1>
+    <p id="boot-status">Game laden...</p>
+    <div class="boot-bar"><span></span></div>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand"><div class="brand-icon">🌱</div><div><strong>Grow Garden 2</strong><small>Online Garden</small></div></div>
+    <div class="wallet">
+      <div class="wallet-chip"><span>🪙</span><b id="coins">0</b></div>
+      <div class="wallet-chip"><span>💎</span><b id="gems">0</b></div>
+      <div class="wallet-chip"><span>⭐</span><b id="level">1</b></div>
+    </div>
+    <button class="icon-btn" id="open-settings">⚙</button>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <button class="nav active" data-view="garden">🌿 <span>Garden</span></button>
+      <button class="nav" data-view="shop">🛒 <span>Seed Shop</span></button>
+      <button class="nav" data-view="pets">🐾 <span>Pets</span></button>
+      <button class="nav" data-view="quests">📜 <span>Quests</span></button>
+      <button class="nav" data-view="inventory">🎒 <span>Inventory</span></button>
+      <div class="sidebar-spacer"></div>
+      <div class="player-card">
+        <div class="avatar" id="avatar">G</div>
+        <div><strong id="player-name">Garden Player</strong><small>Online</small></div>
+      </div>
+    </aside>
+
+    <section class="content">
+      <div id="view-garden" class="view"></div>
+      <div id="view-shop" class="view" hidden></div>
+      <div id="view-pets" class="view" hidden></div>
+      <div id="view-quests" class="view" hidden></div>
+      <div id="view-inventory" class="view" hidden></div>
+    </section>
+  </main>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" class="toast-root"></div>
+</div>
+
+<script type="module" src="./scripts/app.js"></script>
+<noscript><div class="panel" style="margin:20px">JavaScript moet aan staan om Grow Garden 2 te spelen.</div></noscript>
 </body>
 </html>
